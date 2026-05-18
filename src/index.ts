@@ -160,16 +160,23 @@ export default {
 
     const detail = await response.text().catch(() => '')
 
-    if (response.status >= 500) {
-      // Transient — let Cloudflare retry.
-      console.error('freezer_5xx', {
+    if (response.status >= 500 || response.status === 404) {
+      // Transient. 5xx = server error. 404 = ingest endpoint not
+      // deployed yet (or temporarily missing) — retry within the
+      // ~1h budget rather than dropping the batch, since the
+      // endpoint will likely come back and the same payload will
+      // succeed unchanged.
+      const tag = response.status === 404 ? 'freezer_404' : 'freezer_5xx'
+      console.error(tag, {
         status: response.status,
         detail: detail.slice(0, 500),
         count: msgs.length,
       })
       for (const m of msgs) m.retry()
     } else {
-      // 4xx: Freezer rejected the payload. Retrying won't help.
+      // Other 4xx (400, 401, 403, 413, 422, ...): Freezer received
+      // the request and rejected the payload. Retrying won't help —
+      // ack so we don't burn the retry budget on poison.
       console.error('freezer_4xx', {
         status: response.status,
         detail: detail.slice(0, 500),

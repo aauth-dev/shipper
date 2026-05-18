@@ -8,8 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 enabled = true
 
 [vars]
-# Freezer ingest URL. Pointed at beta initially for shake-out.
-FREEZER_URL = "https://freezer.hello-beta.net/api/v1/ingest"
+# Freezer ingest URL. Promoted to prod after beta shake-out
+# confirmed signed POSTs land in Parquet end-to-end.
+FREEZER_URL = "https://freezer.hello.coop/api/v1/ingest"
 
 # Signer identity (the id param in Signature-Key; jwks_uri scheme).
 # Freezer fetches ${SHIPPER_ID}/.well-known/${DWK} -> follows the

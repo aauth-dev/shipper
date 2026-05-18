@@ -50,8 +50,10 @@ Secret:
 - **2xx**: ack.
 - **5xx**: retry (up to 12 × 300s = ~1 hour) then to DLQ
   (`aauth-events-dlq`).
-- **4xx**: ack (poison — retrying won't help; Freezer rejected the
-  payload).
+- **404**: retry (treated as transient — likely ingest endpoint
+  hasn't been deployed yet; same payload will succeed once it is).
+- **Other 4xx** (400, 401, 403, 413, 422, ...): ack (Freezer
+  received and rejected the payload — retrying won't help).
 - **Network / signing failure**: retry.
 
 See `AAuth-dev/EVENT-LOGGING-PLAN.md` and

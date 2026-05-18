@@ -1,0 +1,39 @@
+name = "shipper"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+# @hellocoop/httpsig references Buffer in its signing path.
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+# Freezer ingest URL. Pointed at beta initially for shake-out.
+FREEZER_URL = "https://freezer.hello-beta.net/api/v1/ingest"
+
+# Signer identity (the id param in Signature-Key; jwks_uri scheme).
+# Freezer fetches ${SHIPPER_ID}/.well-known/${DWK} -> follows the
+# embedded jwks_uri -> picks the JWK by kid. The .well-known is
+# served by this same Worker via the custom domain below.
+SHIPPER_ID = "https://shipper.aauth.dev"
+DWK        = "aauth-resource.json"
+
+# Custom domain that serves the .well-known endpoints. Requires the
+# aauth.dev zone to be in this Cloudflare account.
+[[routes]]
+pattern = "shipper.aauth.dev"
+custom_domain = true
+
+[[queues.consumers]]
+queue = "aauth-events"
+max_batch_size = 100
+max_batch_timeout = 30
+max_retries = 12
+# 12 retries * 300s = ~1 hour of failure tolerance before DLQ.
+retry_delay = 300
+dead_letter_queue = "aauth-events-dlq"
+
+# Secret set via `wrangler secret put SIGNING_KEY`:
+#   The shipper's Ed25519 private JWK (JSON-serialized). The public
+#   half is published at /.well-known/jwks.json by this Worker.
+#   Generate with `npm run generate-key`.

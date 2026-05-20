@@ -2,8 +2,9 @@
 
 Cloudflare Worker that ships AAuth telemetry events to Freezer.
 
-Consumes the `aauth-events` queue (fed by `playground.aauth.dev` and
-`whoami.aauth.dev`), groups each batch into NDJSON, signs the POST
+Consumes the `aauth-events` queue (fed by `playground.aauth.dev`,
+`whoami.aauth.dev`, and `notes.aauth.dev`), groups each batch into
+NDJSON, signs the POST
 with AAuth HTTP Message Signatures using its own
 `shipper.aauth.dev` identity (jwks_uri scheme), and sends to Freezer
 ingest.

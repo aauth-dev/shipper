@@ -59,7 +59,7 @@ async function getPublicJwk(env: Env): Promise<JsonWebKey & { kid: string }> {
 
 const app = new Hono<{ Bindings: Env }>()
 
-app.get('/.well-known/aauth-resource.json', (c) => {
+app.get('/.well-known/aauth-agent.json', (c) => {
   const id = c.env.SHIPPER_ID
   return c.json({
     issuer: id,
@@ -74,7 +74,7 @@ app.get('/.well-known/jwks.json', async (c) => {
   return c.json({ keys: [publicJwk] })
 })
 
-app.get('/', (c) => c.text('shipper.aauth.dev — AAuth event shipper. See /.well-known/aauth-resource.json'))
+app.get('/', (c) => c.text('shipper.aauth.dev — AAuth event shipper. See /.well-known/aauth-agent.json'))
 
 // ── Queue consumer (signs + POSTs to Freezer) ──────────────────────
 

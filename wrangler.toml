@@ -17,7 +17,7 @@ FREEZER_URL = "https://freezer.hello.coop/api/v1/ingest"
 # embedded jwks_uri -> picks the JWK by kid. The .well-known is
 # served by this same Worker via the custom domain below.
 SHIPPER_ID = "https://shipper.aauth.dev"
-DWK        = "aauth-resource.json"
+DWK        = "aauth-agent.json"
 
 # Custom domain that serves the .well-known endpoints. Requires the
 # aauth.dev zone to be in this Cloudflare account.

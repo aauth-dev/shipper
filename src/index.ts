@@ -64,7 +64,7 @@ app.get('/.well-known/aauth-resource.json', (c) => {
   return c.json({
     issuer: id,
     jwks_uri: `${id}/.well-known/jwks.json`,
-    client_name: 'AAuth Event Shipper',
+    name: 'AAuth Event Shipper',
     description: 'Cloudflare Worker that ships AAuth telemetry events to Freezer.',
   })
 })

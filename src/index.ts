@@ -8,6 +8,7 @@ interface Env {
   SHIPPER_ID: string
   DWK: string
   SIGNING_KEY: string // Ed25519 private JWK (JSON-serialized), secret
+  EVENTS_QUEUE: Queue // this same aauth-events queue — synthesized shipping-failure events (drop visibility)
 }
 
 // ── Event shape ────────────────────────────────────────────────────
@@ -100,6 +101,31 @@ async function postSignedToFreezer(env: Env, body: string): Promise<Response> {
   return result as Response
 }
 
+// Make drops VISIBLE: synthesize a level-50 event back onto aauth-events so it
+// lands in Freezer (the daily error review's source of truth). Without this,
+// terminal 4xx acks and per-line ingest rejects vanish with only a console line
+// in wrangler tail — how the proxy fleet silently lost weeks of events.
+// Loop guard: never synthesize for a batch that is itself all shipper events
+// (a rejected synthesized event must not spawn another).
+async function reportDrop(env: Env, events: LogEvent[], event: string, msg: string, detail: Record<string, unknown>): Promise<void> {
+  if (events.every(e => e.service === 'shipper')) return
+  try {
+    await env.EVENTS_QUEUE.send({
+      service: 'shipper',
+      event,
+      timestamp: new Date().toISOString(),
+      event_id: crypto.randomUUID(),
+      level: 50,
+      msg,
+      ...detail,
+      services: [...new Set(events.map(e => e.service))],
+      count: events.length,
+    })
+  } catch (err) {
+    console.error('drop_report_send_failed', { error: String(err) })
+  }
+}
+
 export default {
   fetch: app.fetch,
 
@@ -153,7 +179,22 @@ export default {
     }
 
     if (response.ok) {
-      console.log('freezer_accepted', { status: response.status, count: msgs.length })
+      // Freezer's ingest rejects PER LINE (202 + rejects[]) — bad lines are
+      // dropped while the rest land. Surface any rejects; still ack (a retry
+      // would just re-reject the same lines and duplicate the good ones).
+      const body = (await response.json().catch(() => undefined)) as
+        | { accepted?: number; rejected?: number; rejects?: Array<{ line_number: number; error: string; detail?: string }> }
+        | undefined
+      if (body?.rejected) {
+        console.error('freezer_line_rejects', { rejected: body.rejected, accepted: body.accepted, rejects: body.rejects?.slice(0, 10) })
+        const rejectedEvents = (body.rejects ?? [])
+          .map(r => events[r.line_number - 1])
+          .filter((e): e is LogEvent => !!e)
+        await reportDrop(env, rejectedEvents.length ? rejectedEvents : events, 'aauth.shipping_rejected',
+          `Freezer rejected ${body.rejected} event line(s)`, { rejects: body.rejects?.slice(0, 10) })
+      } else {
+        console.log('freezer_accepted', { status: response.status, count: msgs.length })
+      }
       for (const m of msgs) m.ack()
       return
     }
@@ -176,12 +217,16 @@ export default {
     } else {
       // Other 4xx (400, 401, 403, 413, 422, ...): Freezer received
       // the request and rejected the payload. Retrying won't help —
-      // ack so we don't burn the retry budget on poison.
+      // ack so we don't burn the retry budget on poison. Synthesize a
+      // drop report so the loss is visible in Freezer, not just in tail.
       console.error('freezer_4xx', {
         status: response.status,
         detail: detail.slice(0, 500),
         count: msgs.length,
       })
+      await reportDrop(env, events, 'aauth.shipping_failed_4xx',
+        `Freezer rejected a whole batch with ${response.status} — ${msgs.length} event(s) dropped`,
+        { status: response.status, detail: detail.slice(0, 300) })
       for (const m of msgs) m.ack()
     }
   },

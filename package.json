@@ -11,7 +11,7 @@
     "generate-key": "node scripts/generate-key.mjs"
   },
   "dependencies": {
-    "@hellocoop/httpsig": "^1.5.0",
+    "@hellocoop/httpsig": "^2.0.0",
     "hono": "^4.7.0"
   },
   "devDependencies": {

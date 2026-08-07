@@ -31,6 +31,11 @@ let publicJwkCache: (JsonWebKey & { kid: string }) | undefined
 function getSigningKey(env: Env): JsonWebKey {
   if (signingKeyCache) return signingKeyCache
   const parsed = JSON.parse(env.SIGNING_KEY) as JsonWebKey
+  // httpsig 2.0 (draft -08) requires every JWK to carry a fully-specified
+  // alg (RFC 9864). The deployed SIGNING_KEY secret was minted by the
+  // pre-2.0 generate-key script, which exported from WebCrypto without
+  // alg — stamp it here so the secret does not need re-provisioning.
+  if (!parsed.alg && parsed.crv === 'Ed25519') parsed.alg = 'Ed25519'
   signingKeyCache = parsed
   return parsed
 }
@@ -41,6 +46,9 @@ async function getPublicJwk(env: Env): Promise<JsonWebKey & { kid: string }> {
   // Extract public members only — kid is the thumbprint per the
   // convention used by playground/whoami.
   const pub: JsonWebKey = { kty: sk.kty }
+  // alg is required on every published JWK under 2.0 (RFC 9864);
+  // Freezer's verifier rejects a JWKS entry without it.
+  if (sk.alg !== undefined) pub.alg = sk.alg
   if (sk.crv !== undefined) pub.crv = sk.crv
   if (sk.x !== undefined) pub.x = sk.x
   if (sk.y !== undefined) pub.y = sk.y
